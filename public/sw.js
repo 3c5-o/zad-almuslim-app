@@ -1,4 +1,4 @@
-const CACHE = 'zad-almuslim-v1'
+const CACHE = 'zad-almuslim-v2'
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -18,14 +18,34 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return
+  const request = event.request
+  if (request.method !== 'GET') return
+
+  const url = new URL(request.url)
+  const isSameOrigin = url.origin === self.location.origin
+
+  if (!isSameOrigin) {
+    event.respondWith(fetch(request))
+    return
+  }
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('./index.html')),
+    )
+    return
+  }
+
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const copy = response.clone()
-        caches.open(CACHE).then((cache) => cache.put(event.request, copy))
+    caches.match(request).then((cached) => {
+      if (cached) return cached
+      return fetch(request).then((response) => {
+        if (response.ok) {
+          const copy = response.clone()
+          caches.open(CACHE).then((cache) => cache.put(request, copy))
+        }
         return response
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('./index.html'))),
+    }),
   )
 })
